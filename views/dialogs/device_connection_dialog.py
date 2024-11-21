@@ -1,244 +1,188 @@
+import time
 import tkinter as tk
+import traceback
 
-from views.base.base_dialog import BaseDialog
 from views.themes import UI_COLORS, UI_FONTS
 
 
-class DeviceConnectionDialog(BaseDialog):
+class DeviceConnectionDialog:
     def __init__(self, parent, emulator_controller, app_state, log_callback):
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("Connect to Device")
+        self.dialog.geometry("500x400")
+        self.dialog.configure(bg=UI_COLORS["bg"])
+
         self.emulator_controller = emulator_controller
         self.app_state = app_state
         self.log_callback = log_callback
-        super().__init__(parent, "Device Connection Manager", "500x500")
 
-    def setup(self):
-        bg_color = UI_COLORS["bg"]
-        fg_color = UI_COLORS["fg"]
-        button_bg_color = UI_COLORS["button_bg"]
-        section_font = UI_FONTS["text"]
-
-        # Connection Status Frame
-        status_frame = tk.LabelFrame(
-            self.window,
-            text="Connection Status",
-            font=section_font,
-            bg=bg_color,
-            fg=fg_color,
+        # Add status label
+        self.status_label = tk.Label(
+            self.dialog,
+            text="",
+            font=UI_FONTS["text"],
+            bg=UI_COLORS["bg"],
+            fg=UI_COLORS["fg"],
+            wraplength=450,
         )
-        status_frame.pack(fill=tk.X, padx=10, pady=5)
+        self.status_label.pack(pady=5)
 
-        self.current_device_label = tk.Label(
-            status_frame,
-            text=f"Current device: {self.app_state.emulator_name or 'None'}",
-            font=section_font,
-            bg=bg_color,
-            fg=fg_color,
+        self.setup_ui()
+        self.refresh_devices()
+
+    def update_status(self, message, is_error=False):
+        self.status_label.config(
+            text=message, fg=UI_COLORS["error"] if is_error else UI_COLORS["success"]
         )
-        self.current_device_label.pack(pady=5)
+        self.log_callback(message)
 
-        self.connection_status_label = tk.Label(
-            status_frame,
-            text="Status: Not connected",
-            font=section_font,
-            fg=UI_COLORS["warning"],
-            bg=bg_color,
-        )
-        self.connection_status_label.pack(pady=5)
-
-        # Available Devices Frame
-        device_frame = tk.LabelFrame(
-            self.window,
-            text="Available Devices",
-            font=section_font,
-            bg=bg_color,
-            fg=fg_color,
-        )
-        device_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-
-        self.devices_list = tk.Listbox(
-            device_frame, font=section_font, selectmode=tk.SINGLE
-        )
-        self.devices_list.pack(
-            side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5), pady=5
-        )
-
-        scrollbar = tk.Scrollbar(device_frame)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        self.devices_list.config(yscrollcommand=scrollbar.set)
-        scrollbar.config(command=self.devices_list.yview)
-
-        # Buttons Frame
-        buttons_frame = tk.Frame(self.window, bg=bg_color)
-        buttons_frame.pack(fill=tk.X, padx=10, pady=5)
-
-        refresh_btn = tk.Button(
-            buttons_frame,
-            text="🔄 Refresh",
-            command=self.refresh_device_list,
-            bg=button_bg_color,
-            fg=fg_color,
-            width=12,
-        )
-        refresh_btn.pack(side=tk.LEFT, padx=5)
-
-        connect_btn = tk.Button(
-            buttons_frame,
-            text="🔌 Connect",
-            command=self.connect_selected,
-            bg=button_bg_color,
-            fg=fg_color,
-            width=12,
-        )
-        connect_btn.pack(side=tk.LEFT, padx=5)
-
-        disconnect_btn = tk.Button(
-            buttons_frame,
-            text="⚡ Disconnect",
-            command=self.disconnect_current,
-            bg=button_bg_color,
-            fg=fg_color,
-            width=12,
-        )
-        disconnect_btn.pack(side=tk.LEFT, padx=5)
-
-        close_btn = tk.Button(
-            buttons_frame,
-            text="✖ Close",
-            command=self.destroy,
-            bg=button_bg_color,
-            fg=fg_color,
-            width=12,
-        )
-        close_btn.pack(side=tk.RIGHT, padx=5)
-
-        # Manual Connection Frame
-        manual_frame = tk.LabelFrame(
-            self.window,
-            text="Manual Connection",
-            font=section_font,
-            bg=bg_color,
-            fg=fg_color,
-        )
-        manual_frame.pack(fill=tk.X, padx=10, pady=5)
-
+    def setup_ui(self):
+        # Title
         tk.Label(
-            manual_frame, text="IP:Port", font=section_font, bg=bg_color, fg=fg_color
+            self.dialog,
+            text="Available Devices",
+            font=UI_FONTS["header"],
+            bg=UI_COLORS["bg"],
+            fg=UI_COLORS["accent"],
+        ).pack(pady=10)
+
+        # Device list
+        self.device_frame = tk.Frame(self.dialog, bg=UI_COLORS["bg"])
+        self.device_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+
+        # Buttons frame
+        button_frame = tk.Frame(self.dialog, bg=UI_COLORS["bg"])
+        button_frame.pack(fill=tk.X, padx=20, pady=10)
+
+        # Refresh button
+        tk.Button(
+            button_frame,
+            text="🔄 Refresh",
+            command=self.refresh_devices,
+            bg=UI_COLORS["button_bg"],
+            fg=UI_COLORS["fg"],
+            font=UI_FONTS["text"],
+            relief=tk.FLAT,
         ).pack(side=tk.LEFT, padx=5)
 
-        self.ip_entry = tk.Entry(manual_frame, font=section_font)
-        self.ip_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        # Close button
+        tk.Button(
+            button_frame,
+            text="Close",
+            command=self.dialog.destroy,
+            bg=UI_COLORS["button_bg"],
+            fg=UI_COLORS["fg"],
+            font=UI_FONTS["text"],
+            relief=tk.FLAT,
+        ).pack(side=tk.RIGHT, padx=5)
 
-        manual_connect_btn = tk.Button(
-            manual_frame,
-            text="Connect",
-            command=self.connect_manual,
-            bg=button_bg_color,
-            fg=fg_color,
-        )
-        manual_connect_btn.pack(side=tk.RIGHT, padx=5)
+    def refresh_devices(self):
+        # Clear existing devices
+        for widget in self.device_frame.winfo_children():
+            widget.destroy()
 
-        # Initial Population of Devices
-        self.refresh_device_list()
-
-    def refresh_device_list(self):
-        self.devices_list.delete(0, tk.END)
+        # Get devices
         devices = self.emulator_controller.get_all_devices()
 
         if not devices:
-            self.connection_status_label.config(
-                text="Status: No devices found", fg=UI_COLORS["error"]
-            )
+            tk.Label(
+                self.device_frame,
+                text="No devices found",
+                font=UI_FONTS["text"],
+                bg=UI_COLORS["bg"],
+                fg=UI_COLORS["fg"],
+            ).pack(pady=10)
             return
 
+        # Create device buttons
         for device in devices:
-            state_text = (
-                "✓ Available" if device["state"] == "device" else "✗ Unavailable"
-            )
-            is_current = (
-                " (Current)" if device["id"] == self.app_state.emulator_name else ""
-            )
-            self.devices_list.insert(
-                tk.END, f"{device['id']} - {state_text}{is_current}"
-            )
+            device_frame = tk.Frame(self.device_frame, bg=UI_COLORS["bg"])
+            device_frame.pack(fill=tk.X, pady=2)
 
-            if (
+            # Format device ID for display
+            display_id = device["id"]
+            if ":" not in display_id and display_id.isdigit():
+                display_id = f"127.0.0.1:{display_id}"
+
+            # Device info
+            is_connected = (
                 device["id"] == self.app_state.emulator_name
                 and device["state"] == "device"
-            ):
-                self.connection_status_label.config(
-                    text=f"Status: Connected to {device['id']}",
-                    fg=UI_COLORS["success"],
+            )
+            status_color = (
+                UI_COLORS["success"]
+                if device["state"] == "device"
+                else UI_COLORS["error"]
+            )
+
+            tk.Label(
+                device_frame,
+                text=f"• {display_id}",
+                font=UI_FONTS["text"],
+                bg=UI_COLORS["bg"],
+                fg=status_color,
+            ).pack(side=tk.LEFT, padx=5)
+
+            # Connect/Switch button
+            button_text = "Connected" if is_connected else "Connect"
+            button_state = "disabled" if is_connected else "normal"
+
+            tk.Button(
+                device_frame,
+                text=button_text,
+                command=lambda d=device: self.switch_device(d),
+                state=button_state,
+                bg=UI_COLORS["button_bg"],
+                fg=UI_COLORS["fg"],
+                font=UI_FONTS["text"],
+                relief=tk.FLAT,
+            ).pack(side=tk.RIGHT, padx=5)
+
+        # Force update the dialog
+        self.dialog.update_idletasks()
+
+    def switch_device(self, new_device):
+        try:
+            self.update_status(f"Attempting to connect to {new_device['id']}...")
+            self.dialog.update()
+
+            # If there's a currently connected device, disconnect it first
+            if self.app_state.emulator_name:
+                self.update_status(
+                    f"Disconnecting current device: {self.app_state.emulator_name}"
                 )
-            elif device["state"] == "device":
-                self.connection_status_label.config(
-                    text="Status: Device available", fg=UI_COLORS["info"]
-                )
+                self.emulator_controller.disconnect_all_devices()
+                time.sleep(1)
 
-    def connect_selected(self):
-        selection = self.devices_list.curselection()
-        if not selection:
-            self.connection_status_label.config(
-                text="Status: Please select a device", fg=UI_COLORS["warning"]
+            # Try to connect using connect_and_run first
+            if self.emulator_controller.connect_and_run():
+                # Update app state with the new device
+                self.app_state.emulator_name = new_device["id"]
+                self.update_status(f"✅ Successfully connected to {new_device['id']}")
+                self.refresh_devices()  # This will update the UI
+                return
+
+            # If connect_and_run fails, try direct connection
+            connection_result = self.emulator_controller.connect_to_device(
+                new_device["id"]
             )
-            return
 
-        device_str = self.devices_list.get(selection[0])
-        device_id = device_str.split(" - ")[0].strip()
+            if connection_result:
+                self.app_state.emulator_name = new_device["id"]
+                self.update_status(f"✅ Successfully connected to {new_device['id']}")
+                self.refresh_devices()  # This will update the UI
+            else:
+                error_msg = f"❌ Failed to connect to {new_device['id']}\nCheck terminal for detailed error logs"
+                self.update_status(error_msg, is_error=True)
+                self.refresh_devices()  # Refresh UI even on failure
 
-        self.connection_status_label.config(
-            text=f"Status: Connecting to {device_id}...", fg=UI_COLORS["info"]
-        )
-        self.window.update()
-
-        if self.emulator_controller.connect_to_device(device_id):
-            self.connection_status_label.config(
-                text=f"Status: Connected to {device_id}", fg=UI_COLORS["success"]
+        except Exception as e:
+            error_msg = (
+                f"❌ Connection error: {e!s}\nCheck terminal for detailed error logs"
             )
-            self.app_state.emulator_name = device_id
-            self.current_device_label.config(text=f"Current device: {device_id}")
-            self.refresh_device_list()
-            self.log_callback(f"Connected to device: {device_id}")
-        else:
-            self.connection_status_label.config(
-                text="Status: Connection failed", fg=UI_COLORS["error"]
-            )
-            self.log_callback(f"Failed to connect to device: {device_id}")
-
-    def disconnect_current(self):
-        if not self.app_state.emulator_name:
-            self.connection_status_label.config(
-                text="Status: No device connected", fg=UI_COLORS["warning"]
-            )
-            return
-
-        self.emulator_controller.disconnect_all_devices()
-        self.app_state.emulator_name = None
-        self.current_device_label.config(text="Current device: None")
-        self.connection_status_label.config(
-            text="Status: Disconnected", fg=UI_COLORS["info"]
-        )
-        self.refresh_device_list()
-        self.log_callback("Disconnected all devices.")
-
-    def connect_manual(self):
-        ip_port = self.ip_entry.get().strip()
-        if not ip_port:
-            self.connection_status_label.config(
-                text="Status: Please enter IP:Port", fg=UI_COLORS["warning"]
-            )
-            return
-
-        if self.emulator_controller.connect_to_device(ip_port):
-            self.connection_status_label.config(
-                text=f"Status: Connected to {ip_port}", fg=UI_COLORS["success"]
-            )
-            self.app_state.emulator_name = ip_port
-            self.current_device_label.config(text=f"Current device: {ip_port}")
-            self.refresh_device_list()
-            self.log_callback(f"Connected to device: {ip_port}")
-        else:
-            self.connection_status_label.config(
-                text="Status: Connection failed", fg=UI_COLORS["error"]
-            )
-            self.log_callback(f"Failed to connect to device: {ip_port}")
+            self.update_status(error_msg, is_error=True)
+            print("\n=== Dialog Error ===")
+            print(f"Error type: {type(e).__name__}")
+            print(f"Error message: {e!s}")
+            print(traceback.format_exc())
+            self.refresh_devices()  # Refresh UI even on error

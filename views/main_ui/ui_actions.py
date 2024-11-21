@@ -15,6 +15,16 @@ class UIActions:
 
     def toggle_bot(self):
         if not self.bot_ui.bot_running:
+            # Check for connected device first
+            devices = self.bot_ui.bot.emulator_controller.get_all_devices()
+            connected_device = next(
+                (d for d in devices if d["state"] == "device"), None
+            )
+
+            if not connected_device:
+                self.show_device_connection_dialog()
+                return
+
             self.bot_ui.bot_running = True
             self.bot_ui.control_section.start_stop_button.config(
                 text="Stop Bot", bg=UI_COLORS["error"]
@@ -91,6 +101,18 @@ class UIActions:
             self.bot_ui.log_section.log_message("Failed to take screenshot.")
 
     def show_device_connection_dialog(self):
+        self.bot_ui.log_section.log_message("Opening device connection dialog...")
+        devices = self.bot_ui.bot.emulator_controller.get_all_devices()
+
+        if not devices:
+            self.bot_ui.log_section.log_message("⚠️ No devices found")
+        else:
+            self.bot_ui.log_section.log_message(f"Found {len(devices)} device(s):")
+            for device in devices:
+                self.bot_ui.log_section.log_message(
+                    f"  • {device['id']} ({device['state']})"
+                )
+
         DeviceConnectionDialog(
             self.bot_ui.root,
             self.bot_ui.bot.emulator_controller,

@@ -47,5 +47,41 @@ class StatusSection:
         )
         self.selected_emulator_label.pack(fill=tk.X, padx=5, pady=2)
 
+        # Add connection status indicator
+        self.connection_label = tk.Label(
+            self.section.frame,
+            text="📱 Not Connected",
+            font=UI_FONTS["text"],
+            bg=UI_COLORS["bg"],
+            fg=UI_COLORS["error"],
+        )
+        self.connection_label.pack(fill=tk.X, pady=2)
+
+        # Start periodic connection check
+        self.check_connection_status()
+
     def update_emulator_path(self, path):
         self.selected_emulator_label.config(text=path)
+
+    def check_connection_status(self):
+        devices = self.bot_ui.bot.emulator_controller.get_all_devices()
+        connected_device = next(
+            (
+                d
+                for d in devices
+                if d["state"] == "device"
+                and d["id"] == self.bot_ui.app_state.emulator_name
+            ),
+            None,
+        )
+
+        if connected_device:
+            self.connection_label.config(
+                text=f"📱 Connected to: {connected_device['id']}",
+                fg=UI_COLORS["success"],
+            )
+        else:
+            self.connection_label.config(text="📱 Not Connected", fg=UI_COLORS["error"])
+
+        # Schedule next check
+        self.section.frame.after(2000, self.check_connection_status)

@@ -72,9 +72,22 @@ class GameController:
 
             # Try to connect first
             if not self.emulator_controller.connect_and_run():
-                self.log_callback("❌ Failed to connect to any device. Stopping bot.")
-                self.running_event.clear()
-                return
+                # Check if there are any devices available
+                devices = self.emulator_controller.get_all_devices()
+                if not devices:
+                    self.log_callback("❌ No devices found. Stopping bot.")
+                    self.running_event.clear()
+                    return
+                elif len(devices) > 1:
+                    self.log_callback(
+                        "❌ Multiple devices available. Please select one from the Devices menu."
+                    )
+                    self.running_event.clear()
+                    return
+                else:
+                    self.log_callback("❌ Failed to connect to device. Stopping bot.")
+                    self.running_event.clear()
+                    return
 
             self.log_callback("✅ Connected successfully")
 
